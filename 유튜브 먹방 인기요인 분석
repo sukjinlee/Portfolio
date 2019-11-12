@@ -1,0 +1,328 @@
+---
+  title: "190227 유튜브_데이터 분석"
+output: html_document
+---
+  
+  #1.  다중선형회귀모델 구현 후 변수중요도 파악 및 선형관계 판별
+  
+  1. 목적: 6개 종속변수 별로 각각 영향력이 크다고 판단되는 독립변수 선정
+
+2. 다중선형회귀분석 순서:
+  
+  데이터 불러오기 -> 연속형변수 스케일링 -> 변수 간 상관관계 파악 -> 변수 타입 지정 -> 데이터셋 분할 및 훈련/검증/테스트 데이터셋으로 분할
+
+회귀모델 설정: 회귀계수 확인 및 분석모델의 통계적 유의성 확인 -> 회귀모델 성능 파악 -> 회귀분석에 사용한 투입변수 중요도 계산 -> 회귀모델 예측성능 평가
+
+데이터가 선형모형에 맞는지 확인: 표준화된 잔차 그림 
+
+
+### 데이터 불러오기 및 조회
+
+```{r}
+raw <- read_excel('C:/Project/dataset/c_remove_record_MUKBANG.xlsx', 
+                  sheet='14.G+190208+COMMENT_TOTAL_11623')
+```
+
+```{r}
+str(raw)
+colnames(raw)
+raw <- raw[-1]
+colnames(raw)
+```
+
+```{r}
+names(raw); NROW(names(raw))
+```
+
+### 연속형변수 스케일링
+
+#### 연속형변수 데이터셋 따로 생성
+```{r}
+df <- raw[, -c(1, 3, 4, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 27, 28, 29, 30, 31)]
+```
+
+```{r}
+names(df); NROW(names(df))
+```
+
+
+#### 연속형변수 스케일링
+```{r}
+df_log = sapply(df+1, log)   # 0은 로그를 취하면 무한대가 나오므로 각 요소에 +1 해줌
+df_log = as.data.frame(df_log)
+```
+
+```{r}
+head(df_log)
+str(df_log)
+summary(df_log)
+```
+
+######----------------------------------------------------------------------
+
+### 스케일링한 연속형변수와 기존 데이터셋의 범주형변수를 하나의 데이터셋으로 묶고 종속변수 별로 데이터셋 분할
+
+```{r}
+raw_log <- cbind(raw[ , c(4, 7, 10, 13, 15, 18, 29)], df_log)
+```
+
+```{r}
+names(raw_log); NROW(names(raw_log))
+```
+
+```{r}
+df_all <- raw_log[, -c(18)]
+
+df_vpd <- raw_log[, -c(12, 13, 14, 15, 16, 18)]
+df_v <- raw_log[, -c(12, 13, 14, 15, 17, 18)]
+df_lpd <- raw_log[, -c(12, 14, 15, 16, 17, 18)]
+df_l <- raw_log[, -c(13, 14, 15, 16, 17, 18)]
+df_dpd <- raw_log[, -c(12, 13, 14, 16, 17, 18)]
+df_d <- raw_log[, -c(12, 13, 15, 16, 17, 18)]
+```
+
+```{r}
+names(df_vpd); NROW(names(df_vpd))
+names(df_v); NROW(names(df_v))
+names(df_lpd); NROW(names(df_lpd))
+names(df_l); NROW(names(df_l))
+names(df_dpd); NROW(names(df_dpd))
+names(df_d); NROW(names(df_d))
+```
+
+
+######----------------------------------------------------------------------
+
+### 변수간 상관관계 파악: 산점도 그래프
+
+#### VIEWS_PER_DAY가 종속변수일 때
+
+```{r}
+pairs.panels(df_vpd, method = "pearson", hist.col = "#00AFBB",
+             
+             density = TRUE, ellipses = TRUE)
+```
+
+
+### 변수 타입 지정: 종속변수 / 독립변수 중 범주형 / 독립변수 중 연속형
+
+#### 종속변수 지정
+
+```{r}
+var_dep <- c("VIEWS_PER_DAY", "LIKES_PER_DAY", "DISLIKES_PER_DAY", "LIKES", "DISLIKES", "VIEWS")
+
+var_dep
+```
+
+#### 독립변수 중 범주형 지정
+
+```{r}
+var_ctg <- c("KEYWORD_OX", "MATCHWORD_OX", "CAPTION", "DAY", "MONTH", "GENRE", "LEVEL")
+
+var_ctg; NROW(var_ctg)
+```
+
+
+#### 독립변수 중 연속형 지정
+
+```{r}
+var_num <- setdiff(names(df_all), c(var_dep, var_ctg))
+
+var_num; NROW(var_num)
+```
+
+
+
+#### 독립변수 중 범주형 변수컬럼을 일괄팩터화하는 사용자 정의함수 
+
+```{r}
+to_factors <- function(df, cv) {
+  for (i in cv){
+    df[[i]] <- as.factor(df[[i]])
+  }
+  
+  return(df)
+}
+```
+
+
+#### 독립변수 중 범주형 변수컬럼 일괄팩터화 작업진행
+
+```{r}
+df_all <- to_factors(df = df_all, cv = var_ctg)
+
+str(df_all)
+
+df_vpd <- to_factors(df = df_vpd, cv = var_ctg)
+df_v <- to_factors(df = df_v, cv = var_ctg)
+df_lpd <- to_factors(df = df_lpd, cv = var_ctg)
+df_l <- to_factors(df = df_l, cv = var_ctg)
+df_dpd <- to_factors(df = df_dpd, cv = var_ctg)
+df_d <- to_factors(df = df_d, cv = var_ctg)
+```
+
+
+
+### 데이터 분할실시: 훈련 / 검증 / 테스트데이터 
+
+#### 샘플링 난수번호 설정
+```{r}
+set.seed(2000)
+```
+
+#### 전체 데이터를 60%, 20%, 20% 비율로 분할할 인덱스 추출
+```{r}
+idx <- sample(x = 1:3, 
+              size = NROW(raw), 
+              replace = TRUE, 
+              prob = c(0.6, 0.2, 0.2))
+
+# 60%: 학습(training) 데이터
+# 20%: 검증(validation) 데이터
+# 20%: 테스트(test) 데이터
+
+idx # 3가지 그룹으로 추출된 인덱스 번호
+table(idx) # 추출된 3가지 인덱스그룹 갯수 확인
+```
+
+#### 3가지 그룹별 인덱스를 활용한 데이터분할 실시
+
+```{r}
+df_vpd_train <- df_vpd[idx == 1, ] # 학습(training) 데이터 추출
+df_vpd_valid <- df_vpd[idx == 2, ] # 검증(validation) 데이터 추출
+df_vpd_test <- df_vpd[idx == 3, ] # 테스트(test) 데이터 추출
+
+df_v_train <- df_v[idx == 1, ] # 학습(training) 데이터 추출
+df_v_valid <- df_v[idx == 2, ] # 검증(validation) 데이터 추출
+df_v_test <- df_v[idx == 3, ] # 테스트(test) 데이터 추출
+
+df_lpd_train <- df_lpd[idx == 1, ] # 학습(training) 데이터 추출
+df_lpd_valid <- df_lpd[idx == 2, ] # 검증(validation) 데이터 추출
+df_lpd_test <- df_lpd[idx == 3, ] # 테스트(test) 데이터 추출
+
+df_l_train <- df_l[idx == 1, ] # 학습(training) 데이터 추출
+df_l_valid <- df_l[idx == 2, ] # 검증(validation) 데이터 추출
+df_l_test <- df_l[idx == 3, ] # 테스트(test) 데이터 추출
+
+df_dpd_train <- df_dpd[idx == 1, ] # 학습(training) 데이터 추출
+df_dpd_valid <- df_dpd[idx == 2, ] # 검증(validation) 데이터 추출
+df_dpd_test <- df_dpd[idx == 3, ] # 테스트(test) 데이터 추출
+
+df_d_train <- df_d[idx == 1, ] # 학습(training) 데이터 추출
+df_d_valid <- df_d[idx == 2, ] # 검증(validation) 데이터 추출
+df_d_test <- df_d[idx == 3, ] # 테스트(test) 데이터 추출
+```
+
+#### 분할된 데이터셋 크기 비교
+```{r}
+NROW(df_vpd_train); NROW(df_vpd_valid); NROW(df_vpd_test)
+```
+
+
+######----------------------------------------------------------------------
+
+### 선형회귀모델 설정: 종속변수 VIEWS_PER_DAY에 대해
+
+```{r}
+lm_fit_vpd <- lm(VIEWS_PER_DAY ~. , data = df_vpd_train)
+```
+
+
+#### 회귀계수 확인: 각 계수별 크기, 방향성 확인
+
+```{r}
+options("scipen" = 100)
+
+lm_fit_vpd
+
+length(coef(lm_fit_vpd)) 
+```
+
+
+#### 회귀계수 확인 및 분석 모델의 통계적 유의성 확인
+
+```{r}
+options("scipen" = 100)
+summary(lm_fit_vpd) 
+```
+
+
+
+```{r}
+df_vpd_coef <- as.data.frame(summary(lm_fit_vpd)$coefficients)
+```
+
+
+#### 회귀모델 성능(데이터 적합성) 파악
+
+```{r}
+AIC(lm_fit_vpd)
+
+BIC(lm_fit_vpd)
+
+summary(lm_fit_vpd)$adj.r.square
+```
+
+
+
+##### 변수컬럼마다의 회귀계수 신뢰구간
+
+```{r}
+confint(lm_fit_vpd)
+
+signif(confint(lm_fit_vpd), 1)
+
+signif(confint(lm_fit_vpd), 2)
+
+signif(confint(lm_fit_vpd), 3)
+```
+
+
+### 모델의 예측 성능 평가
+
+#### 검증데이터셋 예측
+
+```{r}
+lm_vpd_pred_valid <- predict(lm_fit_vpd, newdata = df_vpd_valid)
+```
+
+#### 검증데이터셋 예측성능 평가
+
+```{r}
+rmse(df_vpd_valid$VIEWS_PER_DAY, lm_vpd_pred_valid)
+mae(df_vpd_valid$VIEWS_PER_DAY, lm_vpd_pred_valid)
+```
+
+#### 테스트셋을 대상으로 최종적으로 모델간 성능평가
+
+```{r}
+lm_vpd_pred_test <- predict(lm_fit_vpd, newdata = df_vpd_test)
+```
+
+#### 테스트데이터셋 예측성능 평가: caret::defaultSummary() 함수이용 성능평가
+
+```{r}
+lm_perf_test <- defaultSummary(data.frame(obs = df_vpd_test$VIEWS_PER_DAY, 
+                                          pred = lm_vpd_pred_test))
+lm_perf_test
+```
+
+
+### 추천모델 학습 및 테스트데이터 예측 성능 평가
+```{r}
+lm_fit_vpd <- lm(VIEWS_PER_DAY ~ KEYWORD_OX + CAPTION + MONTH + GENRE + LEVEL + 
+                   TITLE_LEN + KEYWORD_LEN + MATCHWORD_LEN + DURATION, 
+                 data = df_vpd_train)
+
+lm_perf_test <- defaultSummary(data.frame(obs = df_vpd_test$VIEWS_PER_DAY, 
+                                          pred = lm_vpd_pred_test))
+lm_perf_test
+```
+
+### 데이터가 선형모형에 맞는지 확인
+
+#### 표준화된 잔차 그림
+
+```{r}
+plot(rstudent(lm_fit_vpd),main="표준화된 잔차")
+```
