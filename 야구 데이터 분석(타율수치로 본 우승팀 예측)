@@ -1,0 +1,108 @@
+# KBO 2019시즌 두산 우승
+# 준결승전 : 키움 - SK
+# 결승전   : 두산 - SK
+# 이번시즌은 두산이 우승했는데 지금까지 나온 타자(타격)수치로 본다면 두산이 이겼을 수가 있을까?
+
+# 1. scatter plot을 통한 타자들 구성 분포 탐색
+# 2. barplot을 활용한 팀별 성향 비교
+
+
+# KBO 데이터 불러오기
+BB <- read_xlsx("baseball1.xlsx",
+                sheet = 1,
+                col_names = TRUE) 
+
+# 타석당 타점을 중요하다고 보고 비율변수 추가
+BB$pparbi <- BB$RBI/BB$PA
+BB1 <- BB[order(BB$pparbi, decreasing=T),]
+head(BB1,5)
+
+# 전반적인 상관관계 확인
+pairs(BB1[,4:7])
+# 타석이 많다고 타율이 자동적으로 높지는 않다
+
+# 주요 관심 특정 변수를 활용한 scatterplot으로 대세 파악하기
+plot(BB1$AVG, BB1$ISOP,
+     cex=0.9, pch=19,
+     col=ifelse(BB1$TEAM=="Doosan", "navy", 
+                ifelse(BB1$TEAM=="SK", "red",
+                       ifelse(BB1$TEAM=="Kiwoom", "orange", "lightblue"))),
+     main="가을야구 Preview - stat a.o. 20191031",
+     xlab="AVG",
+     ylab="ISOP",
+     sub="only high XR/PA hitters labeled")
+     
+# 세 집단을 구별하기 위해서 색상을 각각 지정
+# 기타 팀의 선수들도 전체 분포를 함께 보기 위해 포함
+
+text(BB1$AVG, BB1$ISOP, 
+     labels=ifelse((BB1$XR/BB1$PA)>.17 &
+                     BB1$TEAM %in% c("Doosan","SK","Kiwoom"),as.character(BB1$NAME), ""),
+     pos=3, cex=0.7)
+
+# 조건부로 선수이름을 표시
+# 타석대비 득점생산력이 높은 소수의 선수만 이름 표시
+
+abline(h=.28, lty=3)
+abline(v=.32, lty=3)
+
+
+
+#장타(2B+3B, HR)으로 분석하기
+# KBO 데이터 불러오기
+BB <- read_xlsx("baseball1.xlsx",
+                sheet = 1,
+                col_names = TRUE) 
+
+plot(BB$'2B'+BB$'3B', BB$HR, 
+     cex=0.9, pch=19,
+     col=ifelse(BB$TEAM=="Doosan", "navy", 
+                ifelse(BB$TEAM=="SK", "red", 
+                       ifelse(BB$TEAM=="Kiwoom", "orange", "lightblue"))),
+     main="가을야구 Preview - stat a.o. 20191031",
+     xlab="2B+3B",
+     ylab="HR",
+     sub="only high XR/PA hitters labeled")
+
+text(BB$'2B'+BB$'3B', BB$HR, 
+  labels=ifelse((BB$XR/BB$PA)>.17 & 
+                 BB$TEAM %in% c("Doosan","SK","Kiwoom"),as.character(BB$NAME), ""),
+  pos=2, cex=0.7)
+
+abline(h=30, lty=3)
+abline(v=25, lty=3)
+
+#위의 두 분석 다 SK와 키움이 장타력과 타율이 좋았지만, 두산이 우승했다.
+#분석 결과 팀을 승리로 이끄는데는 도움이 되지만 결과는 승리 요인은 다른것이 아닐까 싶다.
+#그래서 아래 분석에서는 타구별 본도를 체크해 볼 것이다.
+#---- barplot으로 안타의 종류별 빈도 비교 -----
+# 장거리, 중거리, 단거리의 비율로 팀별 성향을 파악
+# 팀별 집계 테이블 생성
+# 먼저 빈 테이블을 데이터프레임으로 생성
+
+teams <- data.frame(team="", H=0,'2B'=0,'3B'=0,HR=0)
+
+# 팀별 집계치를 추가
+teams[1,]<- c("Doosan", colSums(BB[BB$TEAM=="Doosan",c("H","2B","3B","HR")]))
+teams[2,]<- c("SK", colSums(BB[BB$TEAM=="SK",c("H","2B","3B","HR")]))
+teams[3,]<- c("Kiwoom",colSums(BB[BB$TEAM=="Kiwoom",c("H","2B","3B","HR")]))
+
+# 매트릭스로 변환
+tteams <- as.matrix(teams[,2:5])
+
+# 문자형으로 자동 설정된 데이터 형식을 수치로 변경
+tteams <- mapply(tteams, FUN=as.numeric)
+tteams <- matrix(data=tteams, ncol=4, nrow=3)
+row.names(tteams) <- c("Doosan","SK","Kiwoom")
+colnames(tteams) <- c("H","2B","3B", "HR")
+
+# 안타수는 2, 3루타와 홈런이 모두 포함되어있으므로
+# 순수한 안타만 계산
+tteams[,1] <- tteams[,1] - (tteams[,2] + tteams[,3] +tteams[,4])
+
+# beside 옵션으로 그룹(팀)별 비교 가능하도록
+barplot(tteams, beside=T, 
+        col=c("navy", "red", "orange"),
+        legend = rownames(tteams),)
+
+#이 분석결과 안타의 빈도가 높은 팀이 우승을 차지하였다고 생각이 든다.
